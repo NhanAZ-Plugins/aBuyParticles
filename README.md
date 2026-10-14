@@ -8,8 +8,8 @@ This repository contains the historical `aParticles` plugin, which offered playe
 
 ## Historical configuration and risks
 
-`resources/config.yml` lists particle prices and Vietnamese messages. The source expects a `period` value that is absent from that file. It also asks for a message key named `necesita comprar`, while the configuration uses `needToBuy`. The economy adapter may be `null` even though the purchase path calls it, and the purchase path grants a particle without checking whether the charge was persisted. A port needs validated configuration, a declared economy dependency and failure tests before enabling purchases.
+`resources/config.yml` lists particle prices and Vietnamese messages. The current source now supplies a safe five-second scheduler fallback, uses the configured `needToBuy` key, rejects purchases without a supported economy adapter, verifies a charge before granting a paid particle, prevents duplicate purchases and saves the updated unlock list immediately. The legacy API and particle implementation still need a supported port and server-level tests before this plugin is used on a current server.
 
-The original source and translation attribution remain intact. There is no LICENSE file, CI workflow, DevTools PHAR, Axolotl-PM 5 runtime test or verified release. Resolve redistribution rights with the rights holders before publishing a modified build.
+The translator attribution remains intact; no license was added. There is no CI workflow, DevTools PHAR, Axolotl-PM 5 runtime test or verified release. The added economy fixture and local lint do not establish compatibility or distribution rights. Resolve source provenance before publishing a modified build.
 
 For questions about the NhanAZ ecosystem, use [NhanAZ Discord](https://discord.gg/j2X83ujT6c).

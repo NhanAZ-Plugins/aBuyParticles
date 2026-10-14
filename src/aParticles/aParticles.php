@@ -39,7 +39,12 @@ class aParticles extends PluginBase implements Listener {
 		$this->eco = new aParticlesEconomyManager($this);
 		$pManager = $this->getServer()->getPluginManager();
 		$pManager->registerEvents($this, $this);
-		$this->getServer()->getScheduler()->scheduleRepeatingTask(new aParticlesGeneration($this), $this->config['period'] * 20);
+		$period = $this->config['period'] ?? 5;
+		if (!is_numeric($period) || (int) $period < 1) {
+			$this->getLogger()->warning('Invalid particle period; using 5 seconds.');
+			$period = 5;
+		}
+		$this->getServer()->getScheduler()->scheduleRepeatingTask(new aParticlesGeneration($this), (int) $period * 20);
 		$this->getServer()->getScheduler()->scheduleRepeatingTask(new aParticlesAutosaver($this), 6000);
 		$this->getLogger()->info('§aHiệu Ứng Đã Được Kích Hoạt!');
 		$this->getLogger()->info('§aTuwj Động Lưu Lại Sau 5 Phút...');
@@ -99,7 +104,7 @@ class aParticles extends PluginBase implements Listener {
 							return true;
 						}
 						if (array_search($particle, $this->users[$name]['particles']) === false) {
-							$sender->sendMessage(str_replace('{particle}', $particle, $config['necesita comprar']));
+							$sender->sendMessage(str_replace('{particle}', $particle, $config['needToBuy']));
 							return true;
 						}
 						$this->users[$name]['enabled'] = $particle;
@@ -114,15 +119,36 @@ class aParticles extends PluginBase implements Listener {
 								$sender->sendMessage($config['particleNotExist']);
 								return true;
 							}
-							$money = $this->eco->getMoney($name);
-							if ($this->eco !== null) {
-								if ($money < $config['particles'][$particle]) {
+							if (in_array($particle, $this->users[$name]['particles'], true)) {
+								$sender->sendMessage(str_replace('{particle}', $particle, $config['bought']));
+								return true;
+							}
+							$price = $config['particles'][$particle];
+							if ($price === 'free') {
+								$price = 0;
+							}
+							if (!is_numeric($price) || (float) $price < 0) {
+								$this->getLogger()->warning('Invalid configured price for particle ' . $particle . '.');
+								return true;
+							}
+							$price = (float) $price;
+							if ($price > 0) {
+								$money = $this->eco->getMoney($name);
+								if ($money === null) {
+									$sender->sendMessage($config['economyUnavailable'] ?? 'No supported economy plugin is available.');
+									return true;
+								}
+								if (!is_numeric($money) || (float) $money < $price) {
 									$sender->sendMessage($config['notEnoughMoney']);
 									return true;
 								}
-							} else $this->getLogger()->warning('Instala economy');
-							$this->eco->buyParticle($sender->getName(), $config['particles'][$particle]);
+								if (!$this->eco->buyParticle($sender->getName(), $price)) {
+									$sender->sendMessage($config['economyTransactionFailed'] ?? 'The economy transaction failed.');
+									return true;
+								}
+							}
 							$this->users[$name]['particles'][] = $particle;
+							$this->save();
 							$sender->sendMessage(str_replace('{particle}', $particle, $config['buy']));
 							return true;
 						}
@@ -233,9 +259,9 @@ class aParticlesGeneration extends PluginTask {
 }
 
 class aParticlesEconomyManager extends aParticles {
+	private $eco;
 
 	public function __construct(aParticles $plugin) {
-		$this->p = $plugin;
 		$pManager = $plugin->getServer()->getPluginManager();
 		$this->eco = $pManager->getPlugin("EconomyAPI") ?? $pManager->getPlugin("PocketMoney") ?? $pManager->getPlugin("MassiveEconomy") ?? null;
 		unset($pManager);
@@ -250,9 +276,17 @@ class aParticlesEconomyManager extends aParticles {
 	 * @param integer $amount
 	 */
 	public function buyParticle($player, $amount) {
-		if ($this->eco === null)
-			return "§ceconomy incorrecto!";
-		$this->eco->setMoney($player, $this->getMoney($player) - $amount);
+		if ($this->eco === null || !is_numeric($amount) || (float) $amount < 0) {
+			return false;
+		}
+		$balance = $this->getMoney($player);
+		if (!is_numeric($balance) || (float) $balance < (float) $amount) {
+			return false;
+		}
+		$updatedBalance = (float) $balance - (float) $amount;
+		$this->eco->setMoney($player, $updatedBalance);
+		$verifiedBalance = $this->getMoney($player);
+		return is_numeric($verifiedBalance) && abs((float) $verifiedBalance - $updatedBalance) < 0.000001;
 	}
 
 	/**
@@ -260,6 +294,9 @@ class aParticlesEconomyManager extends aParticles {
 	 * @return integer $balance
 	 */
 	public function getMoney($player) {
+		if ($this->eco === null) {
+			return null;
+		}
 		switch ($this->eco->getName()) {
 
 			case 'EconomyAPI':
@@ -275,7 +312,7 @@ class aParticlesEconomyManager extends aParticles {
 				break;
 
 			default:
-				$balance = 0;
+				$balance = null;
 		}
 		return $balance;
 	}

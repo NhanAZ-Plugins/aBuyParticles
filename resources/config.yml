@@ -1,5 +1,6 @@
 ---
 #Tin nhắn
+period: 5
 help: '§e༺§a§lDanh Sách Hiệu Ứng§r§e༻'
 helpList: '§b{particle} : §e{price}'
 
@@ -10,6 +11,8 @@ particleNotExist: '§e༺§aHiệu Ứng§e༻§a Hiệu Ứng Bạn Vừa Nhậ
 permNotExist:  '§e༺§aHiệu Ứng§e༻§a Bạn Không Có Quyền Sử Dụng Hiệu Ứng Này'
 
 notEnoughMoney: '§e༺§aHiệu Ứng§e༻§a Bạn Không Có Đủ Tiền Để Mua Hiệu Ứng'
+economyUnavailable: '§e༺§aHiệu Ứng§e༻§c Không tìm thấy plugin kinh tế được hỗ trợ'
+economyTransactionFailed: '§e༺§aHiệu Ứng§e༻§c Giao dịch không thành công, vui lòng thử lại'
 
 needToBuy: '§e༺§aHiệu Ứng§e༻§a Bạn Cần Mua Hiệu Ứng: {particle}'
 
