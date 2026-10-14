@@ -1,9 +1,43 @@
 name: aParticles
 main: aParticles\aParticles
+version: 2.0.0
+api: 5.0.0
 translator: Ghast Noob
-version: 1.1.0
-api: 2.0.0
-
 commands:
   hieuung:
-    description: Giúp Người Chơi Mua Hiệu Ứng Riêng Cho Mình
+    description: Mua và bật hiệu ứng hạt của người chơi
+    permission: aprt.use
+permissions:
+  aprt.use:
+    default: true
+    description: Allows using particle effect commands
+  aprt.save:
+    default: op
+    description: Allows saving particle effect data
+  aprt.flame:
+    default: true
+    description: Allows using the flame particle
+  aprt.lava:
+    default: true
+    description: Allows using the lava particle
+  aprt.heart:
+    default: true
+    description: Allows using the heart particle
+  aprt.water:
+    default: true
+    description: Allows using the water particle
+  aprt.happy:
+    default: true
+    description: Allows using the happy villager particle
+  aprt.angry:
+    default: true
+    description: Allows using the angry villager particle
+  aprt.bubble:
+    default: true
+    description: Allows using the bubble particle
+  aprt.portal:
+    default: true
+    description: Allows using the portal particle
+  aprt.enchant:
+    default: true
+    description: Allows using the enchant particle

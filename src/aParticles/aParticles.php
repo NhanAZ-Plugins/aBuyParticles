@@ -1,341 +1,325 @@
 <?php
 
+declare(strict_types=1);
+
 namespace aParticles;
 
-use pocketmine\plugin\PluginBase;
-use pocketmine\scheduler\PluginTask;
-use pocketmine\utils\Config;
-
-use pocketmine\event\Listener;
-use pocketmine\event\player\PlayerJoinEvent;
-
-use pocketmine\math\Vector3;
-use pocketmine\level\particle\FlameParticle;
-use pocketmine\level\particle\LavaParticle;
-use pocketmine\level\particle\HeartParticle;
-use pocketmine\level\particle\WaterParticle;
-use pocketmine\level\particle\HappyVillagerParticle;
-use pocketmine\level\particle\AngryVillagerParticle;
-use pocketmine\level\particle\BubbleParticle;
-use pocketmine\level\particle\PortalParticle;
-use pocketmine\level\particle\EnchantParticle;
-
+use pocketmine\color\Color;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
+use pocketmine\event\Listener;
+use pocketmine\event\player\PlayerJoinEvent;
+use pocketmine\math\Vector3;
+use pocketmine\player\Player;
+use pocketmine\plugin\PluginBase;
+use pocketmine\scheduler\ClosureTask;
+use pocketmine\utils\Config;
+use pocketmine\world\particle\AngryVillagerParticle;
+use pocketmine\world\particle\BubbleParticle;
+use pocketmine\world\particle\EnchantParticle;
+use pocketmine\world\particle\FlameParticle;
+use pocketmine\world\particle\HappyVillagerParticle;
+use pocketmine\world\particle\HeartParticle;
+use pocketmine\world\particle\LavaParticle;
+use pocketmine\world\particle\Particle;
+use pocketmine\world\particle\PortalParticle;
+use pocketmine\world\particle\WaterParticle;
+use RuntimeException;
 
-use pocketmine\Player;
+final class aParticles extends PluginBase implements Listener{
 
-class aParticles extends PluginBase implements Listener {
-	public $config, $users;
+	private const SUPPORTED_PARTICLES = ["flame", "lava", "heart", "water", "happy", "angry", "bubble", "portal", "enchant"];
 
-	public function onEnable() {
-		$folder = $this->getDataFolder();
-		if (!is_dir($folder))
-			@mkdir($folder);
-		$this->saveResource('config.yml');
-		$this->config = (new Config($folder . 'config.yml', Config::YAML))->getAll();
-		$this->users = (new Config($folder . 'users.yml', Config::YAML, []))->getAll();
-		unset($folder);
-		$this->eco = new aParticlesEconomyManager($this);
-		$pManager = $this->getServer()->getPluginManager();
-		$pManager->registerEvents($this, $this);
-		$period = $this->config['period'] ?? 5;
-		if (!is_numeric($period) || (int) $period < 1) {
-			$this->getLogger()->warning('Invalid particle period; using 5 seconds.');
-			$period = 5;
+	private Config $usersConfig;
+	private aParticlesEconomyManager $economy;
+	/** @var array<int|string, mixed> */
+	private array $configData;
+	/** @var array<string, array{particles: list<string>, enabled: string|false}> */
+	private array $users = [];
+
+	protected function onEnable() : void{
+		$dataFolder = $this->getDataFolder();
+		if(!is_dir($dataFolder) && !mkdir($dataFolder, 0777, true) && !is_dir($dataFolder)){
+			throw new RuntimeException("Could not create the aParticles data directory.");
 		}
-		$this->getServer()->getScheduler()->scheduleRepeatingTask(new aParticlesGeneration($this), (int) $period * 20);
-		$this->getServer()->getScheduler()->scheduleRepeatingTask(new aParticlesAutosaver($this), 6000);
-		$this->getLogger()->info('§aHiệu Ứng Đã Được Kích Hoạt!');
-		$this->getLogger()->info('§aTuwj Động Lưu Lại Sau 5 Phút...');
+		$this->saveResource("config.yml");
+		$this->configData = (new Config($dataFolder . "config.yml", Config::YAML))->getAll();
+		$this->usersConfig = new Config($dataFolder . "users.yml", Config::YAML, []);
+		$this->users = $this->normalizeUsers($this->usersConfig->getAll());
+		$this->economy = new aParticlesEconomyManager($this);
+		$this->getServer()->getPluginManager()->registerEvents($this, $this);
+
+		$this->getScheduler()->scheduleRepeatingTask(
+			new ClosureTask(function() : void{ $this->emitParticles(); }),
+			$this->particlePeriod() * 20
+		);
+		$this->getScheduler()->scheduleRepeatingTask(
+			new ClosureTask(function() : void{ $this->save(); }),
+			6000
+		);
+		$this->getLogger()->info("§aHiệu Ứng Đã Được Kích Hoạt!");
+		$this->getLogger()->info("§aTự Động Lưu Lại Sau 5 Phút...");
 	}
 
-	public function onPlayerJoin(PlayerJoinEvent $event) {
-		$player = $event->getPlayer();
+	protected function onDisable() : void{
+		if(isset($this->usersConfig)){
+			$this->save();
+		}
+	}
+
+	public function onPlayerJoin(PlayerJoinEvent $event) : void{
+		$this->ensureUser($event->getPlayer());
+	}
+
+	/** @param list<string> $args */
+	public function onCommand(CommandSender $sender, Command $command, string $label, array $args) : bool{
+		if(strtolower($command->getName()) !== "hieuung"){
+			return false;
+		}
+		if(!($sender instanceof Player)){
+			$sender->sendMessage("§cChỉ dành cho người chơi!");
+			return true;
+		}
+
+		$this->ensureUser($sender);
+		$name = strtolower($sender->getName());
+		if(count($args) === 0){
+			$sender->sendMessage($this->help($sender));
+			return true;
+		}
+		if(count($args) === 1){
+			$particle = strtolower($args[0]);
+			if($particle === "help"){
+				$sender->sendMessage($this->help($sender));
+				return true;
+			}
+			if($particle === "save"){
+				if(!$sender->hasPermission("aprt.save")){
+					$sender->sendMessage($this->message("permNotExist", "§cBạn Không Có Quyền Sử Dụng Câu Lệnh Này"));
+					return true;
+				}
+				$this->save();
+				$sender->sendMessage($this->message("save", "§aĐã lưu dữ liệu hiệu ứng."));
+				return true;
+			}
+			if($particle === "off"){
+				$this->users[$name]["enabled"] = false;
+				$this->save();
+				$sender->sendMessage($this->message("particleOff", "§aHiệu ứng đã ngừng hoạt động."));
+				return true;
+			}
+			if(!$this->isConfiguredParticle($particle)){
+				$sender->sendMessage($this->message("particleNotExist", "§cHiệu ứng không tồn tại."));
+				return true;
+			}
+			if(!$sender->hasPermission("aprt." . $particle)){
+				$sender->sendMessage(str_replace("{particle}", $particle, $this->message("permNotExist", "§cBạn không có quyền dùng {particle}.")));
+				return true;
+			}
+			if(!in_array($particle, $this->users[$name]["particles"], true)){
+				$sender->sendMessage(str_replace("{particle}", $particle, $this->message("needToBuy", "§cBạn cần mua hiệu ứng {particle}.")));
+				return true;
+			}
+			$this->users[$name]["enabled"] = $particle;
+			$this->save();
+			$sender->sendMessage(str_replace("{particle}", $particle, $this->message("enabled", "§aĐã bật hiệu ứng {particle}.")));
+			return true;
+		}
+		if(count($args) === 2 && in_array(strtolower($args[0]), ["buy", "add"], true)){
+			$particle = strtolower($args[1]);
+			if(!$this->isConfiguredParticle($particle)){
+				$sender->sendMessage($this->message("particleNotExist", "§cHiệu ứng không tồn tại."));
+				return true;
+			}
+			if(in_array($particle, $this->users[$name]["particles"], true)){
+				$sender->sendMessage(str_replace("{particle}", $particle, $this->message("bought", "§aBạn đã mua hiệu ứng {particle}.")));
+				return true;
+			}
+			$price = $this->particlePrice($particle);
+			if($price === null){
+				$this->getLogger()->warning("Invalid configured price for particle " . $particle . ".");
+				return true;
+			}
+			if($price > 0 && !$this->economy->buyParticle($sender, $price)){
+				$sender->sendMessage($this->message("economyTransactionFailed", "§cGiao dịch không thành công."));
+				return true;
+			}
+			$this->users[$name]["particles"][] = $particle;
+			$this->save();
+			$sender->sendMessage(str_replace("{particle}", $particle, $this->message("buy", "§aĐã mua hiệu ứng {particle}.")));
+			return true;
+		}
+		$sender->sendMessage($this->help($sender));
+		return true;
+	}
+
+	public function save() : void{
+		$this->usersConfig->setAll($this->users);
+		$this->usersConfig->save();
+	}
+
+	private function ensureUser(Player $player) : void{
 		$name = strtolower($player->getName());
-		if (!isset($this->users[$name])) {
+		if(isset($this->users[$name])){
+			return;
+		}
+		$this->users[$name] = ["particles" => $this->freeParticles(), "enabled" => false];
+		$this->save();
+	}
+
+	/**
+	 * @param array<int|string, mixed> $data
+	 * @return array<string, array{particles: list<string>, enabled: string|false}>
+	 */
+	private function normalizeUsers(array $data) : array{
+		$users = [];
+		foreach($data as $rawName => $record){
+			if(!is_string($rawName) || !is_array($record)){
+				continue;
+			}
+			$rawParticles = $record["particles"] ?? [];
 			$particles = [];
-			foreach ($this->config['particles'] as $particle => $cost)
-				if ($cost == 'free' || $cost == 0)
-					$particles[] = $particle;
-			$this->users[$name] = [
-				'particles' => $particles,
-				'enabled' => false
-			];
-		}
-	}
-
-	public function onCommand(CommandSender $sender, Command $command, $label, array $args) {
-		if ($sender instanceof Player) {
-			if (strtolower($command->getName()) == 'hieuung') {
-				$name = strtolower($sender->getName());
-				$config = $this->config;
-
-				switch (count($args)) {
-
-					case 0:
-						$sender->sendMessage($this->help($sender));
-						break;
-
-					case 1:
-						$particle = strtolower($args[0]);
-						if ($particle == 'save') {
-							if ($sender->isOp() || $sender->hasPermission('aprt.save')) {
-								$this->save();
-								$sender->sendMessage($config['save']);
-								return true;
-							}
-						}
-						if ($particle == 'help') {
-							$sender->sendMessage($this->help($sender));
-							return true;
-						}
-						if ($particle == 'off') {
-							$this->users[$name]['enabled'] = false;
-							$sender->sendMessage($config['particleOff']);
-							return true;
-						}
-						if (!isset($config['particles'][$particle])) {
-							$sender->sendMessage($config['particleNotExist']);
-							return true;
-						}
-						if (!$sender->hasPermission("aprt.$particle")) {
-							$sender->sendMessage(str_replace('{particle}', $particle, $config['permNotExist']));
-							return true;
-						}
-						if (array_search($particle, $this->users[$name]['particles']) === false) {
-							$sender->sendMessage(str_replace('{particle}', $particle, $config['needToBuy']));
-							return true;
-						}
-						$this->users[$name]['enabled'] = $particle;
-						$sender->sendMessage(str_replace('{particle}', $particle, $config['enabled']));
-						break;
-
-					case 2:
-						$buy = strtolower($args[0]);
-						$particle = strtolower($args[1]);
-						if ($buy == 'buy' || $buy == 'add') {
-							if (!isset($config['particles'][$particle])) {
-								$sender->sendMessage($config['particleNotExist']);
-								return true;
-							}
-							if (in_array($particle, $this->users[$name]['particles'], true)) {
-								$sender->sendMessage(str_replace('{particle}', $particle, $config['bought']));
-								return true;
-							}
-							$price = $config['particles'][$particle];
-							if ($price === 'free') {
-								$price = 0;
-							}
-							if (!is_numeric($price) || (float) $price < 0) {
-								$this->getLogger()->warning('Invalid configured price for particle ' . $particle . '.');
-								return true;
-							}
-							$price = (float) $price;
-							if ($price > 0) {
-								$money = $this->eco->getMoney($name);
-								if ($money === null) {
-									$sender->sendMessage($config['economyUnavailable'] ?? 'No supported economy plugin is available.');
-									return true;
-								}
-								if (!is_numeric($money) || (float) $money < $price) {
-									$sender->sendMessage($config['notEnoughMoney']);
-									return true;
-								}
-								if (!$this->eco->buyParticle($sender->getName(), $price)) {
-									$sender->sendMessage($config['economyTransactionFailed'] ?? 'The economy transaction failed.');
-									return true;
-								}
-							}
-							$this->users[$name]['particles'][] = $particle;
-							$this->save();
-							$sender->sendMessage(str_replace('{particle}', $particle, $config['buy']));
-							return true;
-						}
-						$sender->sendMessage($this->help($sender));
-						break;
-
-					default:
-						$sender->sendMessage($this->help($sender));
-						break;
+			if(is_array($rawParticles)){
+				foreach($rawParticles as $particle){
+					if(is_string($particle) && in_array($particle, self::SUPPORTED_PARTICLES, true) && !in_array($particle, $particles, true)){
+						$particles[] = $particle;
+					}
 				}
 			}
-		} else $sender->sendMessage('§cChỉ dành cho người chơi!');
-	}
-
-	public function save() {
-		$cfg = new Config($this->getDataFolder() . 'users.yml');
-		$cfg->setAll($this->users);
-		$cfg->save();
-		unset($cfg);
-	}
-
-	/**
-	 * @param Player $player
-	 * @return string
-	 */
-	private function help($player) {
-		$list = "";
-		foreach ($this->config['particles'] as $particle => $price) {
-			$price = $price == 'free' || $price == 0 ? $this->config['free'] : str_replace('{price}', $price, $this->config['price']);
-			if (!$player->hasPermission("aprt.$particle"))
-				$price .= $this->config['dontHavePermissions'];
-			if (array_search($particle, $this->users[strtolower($player->getName())]['particles']) !== false)
-				$price .= str_replace('{particle}', $particle, $this->config['bought']);
-			else
-				$price .= str_replace('{particle}', $particle, $this->config['notBought']);
-			$list .= str_replace(['{particle}', '{price}'], [$particle, $price . "\n"], $this->config['helpList']);
+			$enabled = $record["enabled"] ?? false;
+			if(!is_string($enabled) || !in_array($enabled, $particles, true)){
+				$enabled = false;
+			}
+			$users[strtolower($rawName)] = ["particles" => $particles, "enabled" => $enabled];
 		}
-		return $this->config['help'] . "\n" . $list;
-	}
-}
-
-class aParticlesGeneration extends PluginTask {
-
-	public function __construct(aParticles $plugin) {
-		parent::__construct($plugin);
-		$this->p = $plugin;
+		return $users;
 	}
 
-	public function onRun($tick) {
-		foreach ($this->p->getServer()->getOnlinePlayers() as $player) {
-			if (isset($this->p->users[strtolower($player->getName())])) {
-				$particle = $this->p->users[strtolower($player->getName())];
-				if ($particle['enabled'] !== false) {
-					$particle = $this->p->users[strtolower($player->getName())];
-					$particle = $this->getParticle($particle['enabled'], $player);
-					$player->getLevel()->addParticle($particle);
-				}
+	/** @return list<string> */
+	private function freeParticles() : array{
+		$free = [];
+		foreach($this->configuredParticles() as $name => $price){
+			if($price === "free" || (is_numeric($price) && (float) $price === 0.0)){
+				$free[] = $name;
 			}
 		}
+		return $free;
 	}
 
-	/**
-	 * @param string $particle
-	 * @param Player $player
-	 * @return bool / Particle $particle
-	 */
-	private function getParticle($particle, $player) {
-		$vector3 = new Vector3($player->getX() + $this->randomFloat(), $player->getY() + $this->randomFloat(0.25, 1.5), $player->getZ() + $this->randomFloat());
-		switch ($particle) {
-			case 'flame':
-				$particle = new FlameParticle($vector3);
-				break;
-			case 'lava':
-				$particle = new LavaParticle($vector3);
-				break;
-			case 'heart':
-				$particle = new HeartParticle($vector3, $this->randomFloat(1, 3));
-				break;
-			case 'water':
-				$particle = new WaterParticle($vector3);
-				break;
-			case 'happy':
-				$particle = new HappyVillagerParticle($vector3);
-				break;
-			case 'angry':
-				$particle = new AngryVillagerParticle($vector3);
-				break;
-			case 'bubble':
-				$particle = new BubbleParticle($vector3);
-				break;
-			case 'portal':
-				$particle = new PortalParticle($vector3);
-				break;
-			case 'enchant':
-				$particle = new EnchantParticle($vector3);
-				break;
-			default:
-				$particle = false;
-				break;
+	/** @return array<string, mixed> */
+	private function configuredParticles() : array{
+		$particles = $this->configData["particles"] ?? [];
+		if(!is_array($particles)){
+			return [];
 		}
-		print_r($particle);
-		return $particle;
-	}
-
-	private function randomFloat($min = -1.2, $max = 1.2) {
-		return $min + mt_rand() / mt_getrandmax() * ($max - $min);
-	}
-}
-
-class aParticlesEconomyManager extends aParticles {
-	private $eco;
-
-	public function __construct(aParticles $plugin) {
-		$pManager = $plugin->getServer()->getPluginManager();
-		$this->eco = $pManager->getPlugin("EconomyAPI") ?? $pManager->getPlugin("PocketMoney") ?? $pManager->getPlugin("MassiveEconomy") ?? null;
-		unset($pManager);
-		if ($this->eco === null)
-			$plugin->getLogger()->warning('Không có Plugin kinh tế nào được tìm thấy.');
-		else
-			$plugin->getLogger()->info('§aĐã tìm thấy Plugin kinh tế : §d' . $this->eco->getName());
-	}
-
-	/**
-	 * @param string $player
-	 * @param integer $amount
-	 */
-	public function buyParticle($player, $amount) {
-		if ($this->eco === null || !is_numeric($amount) || (float) $amount < 0) {
-			return false;
+		$configured = [];
+		foreach($particles as $name => $price){
+			if(is_string($name) && in_array($name, self::SUPPORTED_PARTICLES, true)){
+				$configured[$name] = $price;
+			}
 		}
-		$balance = $this->getMoney($player);
-		if (!is_numeric($balance) || (float) $balance < (float) $amount) {
-			return false;
-		}
-		$updatedBalance = (float) $balance - (float) $amount;
-		$this->eco->setMoney($player, $updatedBalance);
-		$verifiedBalance = $this->getMoney($player);
-		return is_numeric($verifiedBalance) && abs((float) $verifiedBalance - $updatedBalance) < 0.000001;
+		return $configured;
 	}
 
-	/**
-	 * @param  string $player
-	 * @return integer $balance
-	 */
-	public function getMoney($player) {
-		if ($this->eco === null) {
+	private function isConfiguredParticle(string $particle) : bool{
+		return array_key_exists($particle, $this->configuredParticles());
+	}
+
+	private function particlePrice(string $particle) : ?float{
+		$price = $this->configuredParticles()[$particle] ?? null;
+		if($price === "free"){
+			return 0.0;
+		}
+		if(!is_numeric($price)){
 			return null;
 		}
-		switch ($this->eco->getName()) {
-
-			case 'EconomyAPI':
-				$balance = $this->eco->myMoney($player);
-				break;
-
-			case 'PocketMoney':
-				$balance = $this->eco->getMoney($player);
-				break;
-
-			case 'MassiveEconomy':
-				$balance = $this->eco->getMoney($player);
-				break;
-
-			default:
-				$balance = null;
+		$amount = (float) $price;
+		if(!is_finite($amount) || $amount < 0 || round($amount, 2) !== $amount){
+			return null;
 		}
-		return $balance;
+		return $amount;
 	}
 
-	/**
-	 * @var string $name
-	 * @return mixed
-	 */
-	public function getEconomyPlugin($name = false) {
-		if ($name)
-			return $this->eco->getName();
-		return $this->eco;
-	}
-}
-
-class aParticlesAutosaver extends PluginTask {
-
-	public function __construct(aParticles $plugin) {
-		parent::__construct($plugin);
-		$this->p = $plugin;
+	private function particlePeriod() : int{
+		$value = $this->configData["period"] ?? 5;
+		if(!is_numeric($value) || !is_finite((float) $value) || (float) $value < 1 || (float) $value > intdiv(PHP_INT_MAX, 20)){
+			$this->getLogger()->warning("Invalid particle period; using 5 seconds.");
+			return 5;
+		}
+		return (int) $value;
 	}
 
-	public function onRun($tick) {
-		$this->p->save();
+	private function emitParticles() : void{
+		$changed = false;
+		foreach($this->getServer()->getOnlinePlayers() as $player){
+			$name = strtolower($player->getName());
+			$user = $this->users[$name] ?? null;
+			if($user === null || $user["enabled"] === false){
+				continue;
+			}
+			$particle = $this->createParticle($user["enabled"]);
+			if($particle === null){
+				$this->users[$name]["enabled"] = false;
+				$changed = true;
+				continue;
+			}
+			$position = $player->getPosition();
+			$particlePosition = new Vector3(
+				$position->getX() + $this->randomFloat(-1.2, 1.2),
+				$position->getY() + $this->randomFloat(0.25, 1.5),
+				$position->getZ() + $this->randomFloat(-1.2, 1.2)
+			);
+			$player->getWorld()->addParticle($particlePosition, $particle);
+		}
+		if($changed){
+			$this->save();
+		}
+	}
+
+	private function createParticle(string $name) : ?Particle{
+		return match($name){
+			"flame" => new FlameParticle(),
+			"lava" => new LavaParticle(),
+			"heart" => new HeartParticle(mt_rand(1, 3)),
+			"water" => new WaterParticle(),
+			"happy" => new HappyVillagerParticle(),
+			"angry" => new AngryVillagerParticle(),
+			"bubble" => new BubbleParticle(),
+			"portal" => new PortalParticle(),
+			"enchant" => new EnchantParticle(new Color(0, 0, 0, 255)),
+			default => null
+		};
+	}
+
+	private function randomFloat(float $min, float $max) : float{
+		return $min + mt_rand() / mt_getrandmax() * ($max - $min);
+	}
+
+	private function help(Player $player) : string{
+		$list = "";
+		foreach($this->configuredParticles() as $particle => $price){
+			$displayPrice = $price === "free" || (is_numeric($price) && (float) $price === 0.0)
+				? $this->message("free", "Free")
+				: str_replace("{price}", is_scalar($price) ? (string) $price : "?", $this->message("price", "{price}"));
+			if(!$player->hasPermission("aprt." . $particle)){
+				$displayPrice .= $this->message("dontHavePermissions", " | You do not have permission");
+			}
+			if(in_array($particle, $this->users[strtolower($player->getName())]["particles"], true)){
+				$displayPrice .= str_replace("{particle}", $particle, $this->message("bought", " | Purchased: {particle}"));
+			}else{
+				$displayPrice .= str_replace("{particle}", $particle, $this->message("notBought", " | Not purchased: {particle}"));
+			}
+			$list .= str_replace(
+				["{particle}", "{price}"],
+				[$particle, $displayPrice . "\n"],
+				$this->message("helpList", "{particle}: {price}")
+			);
+		}
+		return $this->message("help", "Particle effects") . "\n" . $list;
+	}
+
+	private function message(string $key, string $fallback) : string{
+		$value = $this->configData[$key] ?? $fallback;
+		return is_string($value) ? $value : $fallback;
 	}
 }

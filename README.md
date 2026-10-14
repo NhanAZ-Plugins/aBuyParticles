@@ -1,15 +1,17 @@
 # aBuyParticles
 
-This repository contains the historical `aParticles` plugin, which offered player particle effects through an economy plugin. The manifest credits Ghast Noob as translator.
+aBuyParticles lets players buy, unlock and display particle effects. It retains the existing Vietnamese messages, configuration keys, user data file and translator credit.
 
-## Compatibility and status
+## Compatibility
 
-`plugin.yml` declares PocketMine-MP API `2.0.0`. The source uses old player, level, particle and scheduler APIs. It has not been ported to Axolotl-PM 5. Do not install it on a current server or use it with real player balances.
+The manifest minimum is Axolotl-PM API 5.0.0. The [build workflow](https://github.com/NhanAZ-Plugins/aBuyParticles/actions/workflows/build.yml) checks exact API 5 source revisions with PHPStan at maximum level, builds and inspects the plugin PHAR, and smoke-tests startup on an isolated Axolotl-PM server. Those checks do not claim compatibility with every API 5.x release or verify connected-client particle rendering.
 
-## Historical configuration and risks
+The plugin recognizes EconomyAPI, PocketMoney and MassiveEconomy when their expected balance methods are available. EconomyAPI purchases require its reduceMoney() success result; other supported providers must report the updated balance after setMoney(). If a charge cannot be confirmed, the particle is not unlocked.
 
-`resources/config.yml` lists particle prices and Vietnamese messages. The current source now supplies a safe five-second scheduler fallback, uses the configured `needToBuy` key, rejects purchases without a supported economy adapter, verifies a charge before granting a paid particle, prevents duplicate purchases and saves the updated unlock list immediately. The legacy API and particle implementation still need a supported port and server-level tests before this plugin is used on a current server.
+## Data and configuration
 
-The translator attribution remains intact; no license was added. There is no CI workflow, DevTools PHAR, Axolotl-PM 5 runtime test or verified release. The added economy fixture and local lint do not establish compatibility or distribution rights. Resolve source provenance before publishing a modified build.
+Particle prices and messages remain in [resources/config.yml](resources/config.yml). Existing lowercase player keys and unlocked particle lists remain in the plugin data file users.yml. New-player defaults and purchase changes are saved immediately; a periodic save remains as a backup.
 
-For questions about the NhanAZ ecosystem, use [NhanAZ Discord](https://discord.gg/j2X83ujT6c).
+## Verification and provenance
+
+The workflow tests confirmed and rejected economy transactions, PHPStan at maximum level, API 5 PHAR builds and an isolated server startup. It does not test a connected player or a real economy account. The repository has no LICENSE file; existing attribution and source history are preserved.
