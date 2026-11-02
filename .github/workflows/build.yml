@@ -67,7 +67,7 @@ jobs:
       - name: Download and verify the official Axolotl-PM server PHAR
         shell: bash
         env:
-          SERVER_SHA256: b62ce263c079a00498a49cd3eab0bfa454f4ba195e5f9d62e32927cfc805c665
+          SERVER_SHA256: bcfbd0deff349c2b25b1688299a7d54f1fc8a080d2f95e19884f8e341319021a
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/abuy-particles-runtime"
