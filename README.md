@@ -20,3 +20,8 @@ Particle prices and messages remain in [resources/config.yml](resources/config.y
 ## Verification and provenance
 
 The workflow tests confirmed and rejected economy transactions, PHPStan at maximum level, API 5 PHAR builds and an isolated server startup. It does not test a connected player or a real economy account. The repository has no LICENSE file; existing attribution and source history are preserved.
+
+
+## Credits
+
+Authors: NhanAZ.
