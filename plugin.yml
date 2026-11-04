@@ -2,6 +2,7 @@ name: aParticles
 main: aParticles\aParticles
 version: 2.0.0
 api: 5.0.0
+authors: ["NhanAZ"]
 translator: Ghast Noob
 commands:
   hieuung:
