@@ -18,11 +18,11 @@ final class aParticlesEconomyManager{
 			$candidate = $pluginManager->getPlugin($pluginName);
 			if($candidate instanceof Plugin && $this->supports($candidate)){
 				$this->economy = $candidate;
-				$plugin->getLogger()->info("§aĐã tìm thấy Plugin kinh tế: §d" . $candidate->getName());
+				$plugin->getLogger()->info("Using economy plugin: " . $candidate->getName());
 				return;
 			}
 		}
-		$plugin->getLogger()->warning("Không có Plugin kinh tế được hỗ trợ.");
+		$plugin->getLogger()->warning("No supported economy plugin was found.");
 	}
 
 	public function getMoney(Player|string $player) : int|float|null{

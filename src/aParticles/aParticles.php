@@ -57,8 +57,8 @@ final class aParticles extends PluginBase implements Listener{
 			new ClosureTask(function() : void{ $this->save(); }),
 			6000
 		);
-		$this->getLogger()->info("§aHiệu Ứng Đã Được Kích Hoạt!");
-		$this->getLogger()->info("§aTự Động Lưu Lại Sau 5 Phút...");
+		$this->getLogger()->info("Particle effects enabled.");
+		$this->getLogger()->info("Particle data will be saved every five minutes.");
 	}
 
 	protected function onDisable() : void{
@@ -73,11 +73,11 @@ final class aParticles extends PluginBase implements Listener{
 
 	/** @param list<string> $args */
 	public function onCommand(CommandSender $sender, Command $command, string $label, array $args) : bool{
-		if(strtolower($command->getName()) !== "hieuung"){
+		if(!in_array(strtolower($command->getName()), ["particles", "hieuung"], true)){
 			return false;
 		}
 		if(!($sender instanceof Player)){
-			$sender->sendMessage("§cChỉ dành cho người chơi!");
+			$sender->sendMessage("§cThis command can only be used by players.");
 			return true;
 		}
 
@@ -95,44 +95,44 @@ final class aParticles extends PluginBase implements Listener{
 			}
 			if($particle === "save"){
 				if(!$sender->hasPermission("aprt.save")){
-					$sender->sendMessage($this->message("permNotExist", "§cBạn Không Có Quyền Sử Dụng Câu Lệnh Này"));
+					$sender->sendMessage($this->message("permNotExist", "§cYou do not have permission to use this command."));
 					return true;
 				}
 				$this->save();
-				$sender->sendMessage($this->message("save", "§aĐã lưu dữ liệu hiệu ứng."));
+				$sender->sendMessage($this->message("save", "§aParticle data saved."));
 				return true;
 			}
 			if($particle === "off"){
 				$this->users[$name]["enabled"] = false;
 				$this->save();
-				$sender->sendMessage($this->message("particleOff", "§aHiệu ứng đã ngừng hoạt động."));
+				$sender->sendMessage($this->message("particleOff", "§aParticle effects disabled."));
 				return true;
 			}
 			if(!$this->isConfiguredParticle($particle)){
-				$sender->sendMessage($this->message("particleNotExist", "§cHiệu ứng không tồn tại."));
+				$sender->sendMessage($this->message("particleNotExist", "§cThat particle effect does not exist."));
 				return true;
 			}
 			if(!$sender->hasPermission("aprt." . $particle)){
-				$sender->sendMessage(str_replace("{particle}", $particle, $this->message("permNotExist", "§cBạn không có quyền dùng {particle}.")));
+				$sender->sendMessage(str_replace("{particle}", $particle, $this->message("permNotExist", "§cYou do not have permission to use {particle}.")));
 				return true;
 			}
 			if(!in_array($particle, $this->users[$name]["particles"], true)){
-				$sender->sendMessage(str_replace("{particle}", $particle, $this->message("needToBuy", "§cBạn cần mua hiệu ứng {particle}.")));
+				$sender->sendMessage(str_replace("{particle}", $particle, $this->message("needToBuy", "§cYou need to buy {particle} first.")));
 				return true;
 			}
 			$this->users[$name]["enabled"] = $particle;
 			$this->save();
-			$sender->sendMessage(str_replace("{particle}", $particle, $this->message("enabled", "§aĐã bật hiệu ứng {particle}.")));
+			$sender->sendMessage(str_replace("{particle}", $particle, $this->message("enabled", "§aEnabled {particle}.")));
 			return true;
 		}
 		if(count($args) === 2 && in_array(strtolower($args[0]), ["buy", "add"], true)){
 			$particle = strtolower($args[1]);
 			if(!$this->isConfiguredParticle($particle)){
-				$sender->sendMessage($this->message("particleNotExist", "§cHiệu ứng không tồn tại."));
+				$sender->sendMessage($this->message("particleNotExist", "§cThat particle effect does not exist."));
 				return true;
 			}
 			if(in_array($particle, $this->users[$name]["particles"], true)){
-				$sender->sendMessage(str_replace("{particle}", $particle, $this->message("bought", "§aBạn đã mua hiệu ứng {particle}.")));
+				$sender->sendMessage(str_replace("{particle}", $particle, $this->message("bought", "§aYou already purchased {particle}.")));
 				return true;
 			}
 			$price = $this->particlePrice($particle);
@@ -141,12 +141,12 @@ final class aParticles extends PluginBase implements Listener{
 				return true;
 			}
 			if($price > 0 && !$this->economy->buyParticle($sender, $price)){
-				$sender->sendMessage($this->message("economyTransactionFailed", "§cGiao dịch không thành công."));
+				$sender->sendMessage($this->message("economyTransactionFailed", "§cThe economy transaction failed."));
 				return true;
 			}
 			$this->users[$name]["particles"][] = $particle;
 			$this->save();
-			$sender->sendMessage(str_replace("{particle}", $particle, $this->message("buy", "§aĐã mua hiệu ứng {particle}.")));
+			$sender->sendMessage(str_replace("{particle}", $particle, $this->message("buy", "§aPurchased {particle}.")));
 			return true;
 		}
 		$sender->sendMessage($this->help($sender));

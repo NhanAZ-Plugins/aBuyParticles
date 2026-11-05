@@ -1,34 +1,34 @@
 ---
-#Tin nhắn
+# Player-facing messages. Existing server configuration is not overwritten automatically.
 period: 5
-help: '§e༺§a§lDanh Sách Hiệu Ứng§r§e༻'
-helpList: '§b{particle} : §e{price}'
+help: '[Particles] Available effects'
+helpList: '{particle}: {price}'
 
-particleOff: '§e༺§aHiệu Ứng§e༻§a Đã Ngừng Hoạt Động'
+particleOff: '[Particles] Particle effects disabled.'
 
-particleNotExist: '§e༺§aHiệu Ứng§e༻§a Hiệu Ứng Bạn Vừa Nhập Không Tồn Tại'
+particleNotExist: '[Particles] That particle effect does not exist.'
 
-permNotExist:  '§e༺§aHiệu Ứng§e༻§a Bạn Không Có Quyền Sử Dụng Hiệu Ứng Này'
+permNotExist:  '[Particles] You do not have permission to use this effect.'
 
-notEnoughMoney: '§e༺§aHiệu Ứng§e༻§a Bạn Không Có Đủ Tiền Để Mua Hiệu Ứng'
-economyUnavailable: '§e༺§aHiệu Ứng§e༻§c Không tìm thấy plugin kinh tế được hỗ trợ'
-economyTransactionFailed: '§e༺§aHiệu Ứng§e༻§c Giao dịch không thành công, vui lòng thử lại'
+notEnoughMoney: '[Particles] You do not have enough money to buy this effect.'
+economyUnavailable: '[Particles] No supported economy plugin was found.'
+economyTransactionFailed: '[Particles] The economy transaction failed. Try again.'
 
-needToBuy: '§e༺§aHiệu Ứng§e༻§a Bạn Cần Mua Hiệu Ứng: {particle}'
+needToBuy: '[Particles] You need to buy this effect first: {particle}'
 
-buy: '§e༺§aHiệu Ứng§e༻§a Đã Mua Thành Công Hiệu Ứng: {particle}'
+buy: '[Particles] Purchased effect: {particle}'
 
-enabled: '§e༺§aHiệu Ứng§e༻§a Đã Kích Hoạt Hiệu Ứng: {particle}'
+enabled: '[Particles] Enabled effect: {particle}'
 
-save: '§e༺§aHiệu Ứng§e༻§a Đã Lưu Hiệu Ứng...'
+save: '[Particles] Particle data saved.'
 
-bought: '§f | §aHiệu Ứng Đã Mua §f|§d Ghi §e/hieuung {particle} §dĐể Bật'
+bought: ' | Purchased: use /particles {particle} to enable'
 
-notBought: '§f | §cHiệu Ứng Chưa Được Mua §f|§d Ghi §e/hieuung buy {particle} §dĐể Mua'
+notBought: ' | Not purchased: use /particles buy {particle} to purchase'
 
-dontHavePermissions: '§b | Bạn Không Có Quyền Sử Dụng Hiệu Ứng Này'
-free: '§aGratis'
-price: '§e{price}'
+dontHavePermissions: ' | You do not have permission'
+free: 'Free'
+price: '{price}'
 
 particles:
   flame: 10000

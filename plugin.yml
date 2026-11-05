@@ -3,10 +3,10 @@ main: aParticles\aParticles
 version: 2.0.0
 api: 5.0.0
 authors: ["NhanAZ"]
-translator: Ghast Noob
 commands:
-  hieuung:
-    description: Mua và bật hiệu ứng hạt của người chơi
+  particles:
+    description: Buy and enable particle effects
+    aliases: [hieuung]
     permission: aprt.use
 permissions:
   aprt.use:
